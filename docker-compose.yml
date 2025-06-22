@@ -1,5 +1,5 @@
 # docker-compose.yml
-# AI選股系統 - 簡化版 Docker Compose 配置
+# AI選股系統 - 修正版 Docker Compose 配置
 version: '3.8'
 
 services:
@@ -109,7 +109,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ai_stock_celery_worker
-    command: celery -A app.main:celery worker --loglevel=info --concurrency=4 --queues=data_update,calculations,ai_processing,maintenance
+    command: celery -A celery_app worker --loglevel=info --concurrency=4 --queues=data_update,calculations,ai_processing,maintenance
     env_file:
       - .env
     environment:
@@ -137,7 +137,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ai_stock_celery_beat
-    command: celery -A app.main:celery beat --loglevel=info
+    command: celery -A celery_app beat --loglevel=info
     env_file:
       - .env
     environment:
@@ -165,7 +165,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ai_stock_celery_flower
-    command: celery -A app.main:celery flower --port=5555
+    command: celery -A celery_app flower --port=5555
     env_file:
       - .env
     environment:
