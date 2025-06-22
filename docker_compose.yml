@@ -161,7 +161,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ai_stock_celery_flower
-    command: celery -A celery_app flower --port=5555
+    command: celery -A celery_app beat --loglevel=info  # ✅ 移除Django調度器
     env_file:
       - .env
     environment:
@@ -183,7 +183,9 @@ services:
       dockerfile: Dockerfile
     container_name: ai_stock_frontend
     ports:
-      - "3000:80"
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
     depends_on:
       backend:
         condition: service_healthy
@@ -199,7 +201,7 @@ services:
   # ===== DATA COLLECTOR SERVICE =====
   data_collector:
     build:
-      context: ./backend
+      context: ./data_collector
       dockerfile: Dockerfile
     container_name: ai_stock_data_collector
     command: python -m data_collector.schedulers.scheduled_tasks
@@ -209,9 +211,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-ai_stock_db}
       REDIS_URL: redis://redis:6379/0
     volumes:
-      - ./data_collector:/app/data_collector
-      - ./backend/app:/app/app
-      - data_collector_logs:/app/logs
+      - ./data_collector:/app
+      - ./backend/app:/app/backend_app  # 共享後端代碼
     depends_on:
       postgres:
         condition: service_healthy
@@ -229,7 +230,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deployment/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf  # ✅ 正確路徑
       - ./deployment/ssl:/etc/nginx/ssl
       - nginx_logs:/var/log/nginx
     depends_on:
