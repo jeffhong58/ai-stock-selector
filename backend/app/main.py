@@ -1,85 +1,28 @@
+# backend/app/main.py
 """
 AI選股系統後端主程式
-FastAPI + SQLAlchemy + Celery
+FastAPI主應用 - 移除重複Celery定義
 """
 
 import os
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
-from celery import Celery
 
 # 本地模組
 from app.config import settings
-from app.database import engine, Base
+from app.database import engine, Base, check_database_health
 from app.api import stocks, analysis, recommendations
 from app.utils.logging import setup_logging
 
 # 設定日誌
 setup_logging()
 logger = logging.getLogger(__name__)
-
-
-# Celery配置
-celery = Celery(
-    "ai_stock_system",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
-    include=[
-        'app.services.data_collector',
-        'app.services.ai_engine',
-        'app.tasks.scheduled_tasks'
-    ]
-)
-
-# Celery配置
-celery.conf.update(
-    task_serializer='json',
-    accept_content=['json'],
-    result_serializer='json',
-    timezone='Asia/Taipei',
-    enable_utc=True,
-    task_track_started=True,
-    task_time_limit=30 * 60,  # 30分鐘超時
-    task_soft_time_limit=25 * 60,  # 25分鐘軟超時
-    worker_max_tasks_per_child=50,  # 每個worker最多處理50個任務後重啟
-)
-
-# 排程任務配置
-celery.conf.beat_schedule = {
-    'daily-data-update': {
-        'task': 'app.tasks.scheduled_tasks.daily_data_update',
-        'schedule': {
-            'hour': 17,
-            'minute': 30,
-        },  # 每日17:30執行
-    },
-    'calculate-technical-indicators': {
-        'task': 'app.tasks.scheduled_tasks.calculate_all_technical_indicators',
-        'schedule': {
-            'hour': 18,
-            'minute': 30,
-        },  # 每日18:30執行
-    },
-    'generate-ai-recommendations': {
-        'task': 'app.tasks.scheduled_tasks.generate_daily_recommendations',
-        'schedule': {
-            'hour': 19,
-            'minute': 0,
-        },  # 每日19:00執行
-    },
-    'cleanup-old-data': {
-        'task': 'app.tasks.scheduled_tasks.cleanup_old_data',
-        'schedule': {
-            'hour': 2,
-            'minute': 0,
-        },  # 每日02:00執行清理
-    },
-}
 
 
 @asynccontextmanager
@@ -96,9 +39,10 @@ async def lifespan(app: FastAPI):
         logger.error(f"資料庫初始化失敗: {e}")
         raise
     
-    # 檢查資料源連接
-    from app.services.data_collector import test_data_sources
-    await test_data_sources()
+    # 檢查資料庫連接狀態
+    health_status = check_database_health()
+    if not all([v for k, v in health_status.items() if k != 'errors']):
+        logger.warning(f"部分資料庫連接異常: {health_status}")
     
     yield
     
@@ -159,22 +103,18 @@ async def general_exception_handler(request, exc):
 async def health_check():
     """系統健康檢查"""
     try:
-        # 檢查資料庫連接
-        from app.database import get_db
-        db = next(get_db())
-        db.execute("SELECT 1")
-        db.close()
+        health_status = check_database_health()
         
-        # 檢查Redis連接
-        import redis
-        r = redis.from_url(settings.REDIS_URL)
-        r.ping()
+        all_healthy = all([
+            health_status.get("postgresql", False),
+            health_status.get("redis", False)
+        ])
         
         return {
-            "status": "healthy",
-            "database": "connected",
-            "redis": "connected",
-            "version": "1.0.0"
+            "status": "healthy" if all_healthy else "degraded",
+            "services": health_status,
+            "version": "1.0.0",
+            "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
         logger.error(f"健康檢查失敗: {e}")
@@ -182,7 +122,8 @@ async def health_check():
             status_code=503,
             content={
                 "status": "unhealthy",
-                "error": str(e)
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
             }
         )
 
@@ -227,10 +168,9 @@ async def system_info():
         "version": "1.0.0",
         "environment": settings.ENVIRONMENT,
         "data_sources": {
-            "yahoo_finance": True,
-            "twse": True,
-            "mops": True,
-            "tej": settings.TEJ_ENABLED
+            "yahoo_finance": settings.YAHOO_FINANCE_ENABLED,
+            "twse": settings.TWSE_ENABLED,
+            "tej": getattr(settings, 'TEJ_ENABLED', False)
         },
         "features": {
             "sector_rotation": True,
@@ -245,13 +185,23 @@ async def system_info():
 @app.get("/api/tasks/{task_id}")
 async def get_task_status(task_id: str):
     """查詢Celery任務狀態"""
-    result = celery.AsyncResult(task_id)
-    return {
-        "task_id": task_id,
-        "status": result.status,
-        "result": result.result if result.ready() else None,
-        "info": result.info
-    }
+    try:
+        # 導入Celery應用
+        from celery_app import celery_app
+        from celery.result import AsyncResult
+        
+        result = AsyncResult(task_id, app=celery_app)
+        
+        return {
+            "task_id": task_id,
+            "status": result.status,
+            "result": result.result if result.ready() else None,
+            "info": result.info,
+            "traceback": result.traceback if result.failed() else None
+        }
+    except Exception as e:
+        logger.error(f"查詢任務狀態失敗: {e}")
+        return {"task_id": task_id, "status": "unknown", "error": str(e)}
 
 
 # 手動觸發資料更新
@@ -259,16 +209,49 @@ async def get_task_status(task_id: str):
 async def trigger_data_update():
     """手動觸發資料更新（管理員功能）"""
     try:
-        from app.tasks.scheduled_tasks import daily_data_update
-        task = daily_data_update.delay()
+        from celery_app import celery_app
+        
+        # 發送任務到Celery
+        task = celery_app.send_task(
+            'app.tasks.scheduled_tasks.daily_data_update',
+            queue='data_update'
+        )
         
         return {
             "message": "資料更新任務已啟動",
-            "task_id": task.id
+            "task_id": task.id,
+            "status": "pending"
         }
     except Exception as e:
         logger.error(f"觸發資料更新失敗: {e}")
-        raise HTTPException(status_code=500, detail="觸發資料更新失敗")
+        raise HTTPException(status_code=500, detail=f"觸發資料更新失敗: {str(e)}")
+
+
+# 手動觸發技術指標計算
+@app.post("/api/admin/calculate-indicators")
+async def trigger_calculate_indicators():
+    """手動觸發技術指標計算"""
+    try:
+        from celery_app import celery_app
+        from datetime import date, timedelta
+        
+        target_date = date.today() - timedelta(days=1)  # 昨天
+        
+        task = celery_app.send_task(
+            'app.tasks.scheduled_tasks.calculate_daily_technical_indicators',
+            args=[target_date],
+            queue='calculations'
+        )
+        
+        return {
+            "message": "技術指標計算任務已啟動",
+            "task_id": task.id,
+            "target_date": target_date.isoformat(),
+            "status": "pending"
+        }
+    except Exception as e:
+        logger.error(f"觸發技術指標計算失敗: {e}")
+        raise HTTPException(status_code=500, detail=f"觸發技術指標計算失敗: {str(e)}")
 
 
 # 手動觸發AI分析
@@ -276,16 +259,56 @@ async def trigger_data_update():
 async def trigger_ai_analysis():
     """手動觸發AI推薦生成（管理員功能）"""
     try:
-        from app.tasks.scheduled_tasks import generate_daily_recommendations
-        task = generate_daily_recommendations.delay()
+        from celery_app import celery_app
+        
+        task = celery_app.send_task(
+            'app.tasks.scheduled_tasks.generate_daily_recommendations',
+            queue='ai_processing'
+        )
         
         return {
             "message": "AI推薦生成任務已啟動",
-            "task_id": task.id
+            "task_id": task.id,
+            "status": "pending"
         }
     except Exception as e:
         logger.error(f"觸發AI分析失敗: {e}")
-        raise HTTPException(status_code=500, detail="觸發AI分析失敗")
+        raise HTTPException(status_code=500, detail=f"觸發AI分析失敗: {str(e)}")
+
+
+# 查看任務佇列狀態
+@app.get("/api/admin/celery-status")
+async def get_celery_status():
+    """查看Celery任務佇列狀態"""
+    try:
+        from celery_app import celery_app
+        
+        # 檢查Celery連接
+        inspect = celery_app.control.inspect()
+        
+        # 獲取活躍任務
+        active_tasks = inspect.active()
+        
+        # 獲取排程任務
+        scheduled_tasks = inspect.scheduled()
+        
+        # 獲取Worker統計
+        stats = inspect.stats()
+        
+        return {
+            "celery_status": "connected" if active_tasks is not None else "disconnected",
+            "active_tasks": active_tasks or {},
+            "scheduled_tasks": scheduled_tasks or {},
+            "worker_stats": stats or {},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"查詢Celery狀態失敗: {e}")
+        return {
+            "celery_status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 
 if __name__ == "__main__":
