@@ -1,0 +1,125 @@
+{
+  "name": "AI選股系統",
+  "short_name": "AI選股",
+  "description": "基於人工智慧的台灣股市選股系統",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#1890ff",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "zh-TW",
+  "dir": "ltr",
+  "categories": ["finance", "productivity", "utilities"],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop-1.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "股票清單頁面"
+    },
+    {
+      "src": "/screenshots/mobile-1.png", 
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "行動版介面"
+    }
+  ],
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96", 
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "股票清單",
+      "short_name": "股票",
+      "description": "查看所有股票清單",
+      "url": "/stocks",
+      "icons": [
+        {
+          "src": "/icons/shortcut-stocks.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "產業輪動",
+      "short_name": "輪動",
+      "description": "查看產業輪動分析",
+      "url": "/industry-rotation",
+      "icons": [
+        {
+          "src": "/icons/shortcut-rotation.png", 
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "智能選股",
+      "short_name": "選股",
+      "description": "AI智能選股推薦",
+      "url": "/smart-selection",
+      "icons": [
+        {
+          "src": "/icons/shortcut-ai.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://ai-stock-selector.example.com/manifest.json"
+    }
+  ],
+  "prefer_related_applications": false
+}
