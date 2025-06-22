@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any
 from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from app.database import get_db, get_redis
+from app.database import get_db, redis_manager
 from app.models.stock import Stock, DailyPrice, TechnicalIndicator
 from app.utils.logging import get_logger, log_api_call
 from app.utils.indicators import TechnicalIndicators, prepare_stock_data_for_indicators
@@ -23,8 +23,7 @@ async def get_technical_analysis(
     symbol: str,
     period: str = Query("1mo", description="時間範圍 (1w/1mo/3mo/6mo/1y)"),
     indicators: Optional[str] = Query(None, description="指標類型，逗號分隔"),
-    db: Session = Depends(get_db),
-    redis_client = Depends(get_redis)
+    db: Session = Depends(get_db)
 ):
     """
     取得股票技術分析
@@ -34,11 +33,10 @@ async def get_technical_analysis(
         cache_key = f"technical_analysis:{symbol}:{period}:{indicators}"
         
         # 嘗試從快取取得
-        if redis_client:
-            cached_data = redis_client.get(cache_key)
-            if cached_data:
-                logger.info(f"從快取取得技術分析 {symbol}")
-                return json.loads(cached_data)
+        cached_data = redis_manager.get(cache_key)
+        if cached_data:
+            logger.info(f"從快取取得技術分析 {symbol}")
+            return json.loads(cached_data)
         
         # 檢查股票是否存在
         stock = db.query(Stock).filter(Stock.symbol == symbol).first()
@@ -97,8 +95,7 @@ async def get_technical_analysis(
         }
         
         # 儲存到快取（10分鐘）
-        if redis_client:
-            redis_client.setex(cache_key, 600, json.dumps(result, default=str))
+        redis_manager.set(cache_key, json.dumps(result, default=str), ttl=600)
         
         logger.info(f"技術分析完成: {symbol}")
         return result

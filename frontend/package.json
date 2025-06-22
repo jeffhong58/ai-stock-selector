@@ -1,11 +1,58 @@
 {
   "name": "ai-stock-selector-frontend",
   "version": "1.0.0",
+  "private": true,
+  "description": "AI選股系統前端應用",
+  "keywords": ["react", "typescript", "stock", "ai", "taiwan"],
+  "author": "jeffhong58",
+  "license": "MIT",
   "dependencies": {
+    "@ant-design/icons": "^5.2.6",
+    "@types/node": "^20.8.0",
+    "@types/react": "^18.2.25",
+    "@types/react-dom": "^18.2.11",
+    "antd": "^5.10.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "typescript": "^4.9.4",
-    "antd": "^5.0.0",
-    "@types/react": "^18.0.0"
+    "react-query": "^3.39.3",
+    "react-router-dom": "^6.16.0",
+    "typescript": "^5.2.2",
+    "web-vitals": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.5",
+    "@typescript-eslint/eslint-plugin": "^6.7.4",
+    "@typescript-eslint/parser": "^6.7.4",
+    "@vitejs/plugin-react": "^4.1.0",
+    "eslint": "^8.50.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "vite": "^4.4.11",
+    "vite-plugin-pwa": "^0.16.5"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "start": "vite --host 0.0.0.0 --port 3000",
+    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint src --ext ts,tsx --fix",
+    "type-check": "tsc --noEmit"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }

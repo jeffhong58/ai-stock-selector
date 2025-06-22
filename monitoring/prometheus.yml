@@ -1,0 +1,55 @@
+# monitoring/prometheus.yml
+# Prometheus監控配置檔案
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus自我監控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # 後端API監控
+  - job_name: 'ai-stock-backend'
+    static_configs:
+      - targets: ['backend:8000']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # Redis監控
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  # PostgreSQL監控 (需要額外配置exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+
+  # InfluxDB監控
+  - job_name: 'influxdb'
+    static_configs:
+      - targets: ['influxdb:8086']
+    metrics_path: /metrics
+
+  # Nginx監控
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:80']
+
+  # Celery監控
+  - job_name: 'celery'
+    static_configs:
+      - targets: ['celery_flower:5555']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
