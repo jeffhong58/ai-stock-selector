@@ -16,7 +16,11 @@ celery_app = Celery(
     "ai_stock_selector",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=['app.tasks']
+    include=[
+        'app.tasks.scheduled_tasks',  # 修正路徑
+        'app.services.data_collector',
+        'app.services.ai_engine'
+    ]
 )
 
 # Celery configuration

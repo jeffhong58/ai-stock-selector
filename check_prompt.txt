@@ -114,3 +114,4 @@ POST /api/admin/update-data - 手動更新資料
   backend/app/config.py
   data_collector/schedulers/scheduled_tasks.py
 6.如果我指定的檔案你無法讀取,就提醒我哪些檔案無法讀取,並且停止分析作業,才不會浪費對話的token數
+
