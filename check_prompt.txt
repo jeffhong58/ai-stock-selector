@@ -1,0 +1,68 @@
+你正在開發AI選股系統，已完成第一階段。
+
+專案現況 GitHub Repository: 
+
+https://github.com/jeffhong58/ai-stock-selector/
+
+考量你無法進入到repo子目錄, 我將程式檔案的完整路徑與結構表列給你,
+
+🙈 .gitignore (31.0 B)
+
+📁 backend/
+  📁 backend/app/
+    📁 backend/app/api/
+      🐍 backend/app/api/stocks.py (12.14 KB)
+    🐍 backend/app/config.py (8.29 KB)
+    🐍 backend/app/database.py (10.41 KB)
+    🐍 backend/app/main.py (7.26 KB)
+    📁 backend/app/models/
+      🐍 backend/app/models/stock.py (16.62 KB)
+    📁 backend/app/utils/
+      🐍 backend/app/utils/indicators.py (19.73 KB)
+  🐳 backend/dockerfile.txt (1.28 KB)
+  📦 backend/requirements.txt (1.31 KB)
+📁 data_collector/
+  📁 data_collector/schedulers/
+    🐍 data_collector/schedulers/scheduled_tasks.py (22.0 KB)
+  📁 data_collector/scrapers/
+    🐍 data_collector/scrapers/twse_scraper.py (18.01 KB)
+    🐍 data_collector/scrapers/yahoo_finance.py (14.19 KB)
+🗃️ database_schema.sql (25.59 KB)
+⚙️ docker_compose.yml (4.57 KB)
+📁 docs/
+  📝 docs/AI選股系統專案架構.md (6.55 KB)
+  📝 docs/deployment_guide.md (7.31 KB)
+📝 phase1_summary.md (7.29 KB)
+📖 readme.md (7.01 KB)
+
+已完成功能（第一階段）  
+
+✅ Docker容器化部署 (PostgreSQL + InfluxDB + Redis + FastAPI)  ✅ Yahoo Finance資料收集器 (股票基本資訊、歷史價格)  ✅ 證交所資料收集器 (三大法人、融資融券)  ✅ 技術指標計算引擎 (MA、RSI、MACD、KD、布林帶等)  ✅ 資料庫設計與模型 (預留TEJ擴展欄位)  ✅ 基本API端點 (股票查詢、價格、技術指標) * ✅ Celery自動化排程 (每日資料更新) 當前資料庫架構
+
+-- 核心表格
+stocks (股票基本資料)
+daily_prices (日線價格) 
+technical_indicators (技術指標)
+institutional_trading (三大法人)
+margin_trading (融資融券)
+ai_recommendations (AI推薦結果)
+market_data (市場總體)
+industries (產業分類)
+
+API端點
+
+GET /api/stocks/ - 股票清單
+GET /api/stocks/{symbol} - 股票詳情
+GET /api/stocks/{symbol}/price - 價格資料
+GET /api/stocks/{symbol}/indicators - 技術指標
+GET /api/stocks/search/{query} - 股票搜尋
+POST /api/admin/update-data - 手動更新資料
+
+請幫我檢查, 根據第一階段的目標, 
+1.是否還有缺程式或配置檔
+2.檔案所在目錄是否正確
+3.程式內容是否合理,可以正常運作
+4.請注意,我是不懂程式的人,所以需要您的專業幫我撰寫所有的程式或配置檔
+5.每一個檔案內容的第一行都要註解該檔案的完整路徑及檔案, 例如:
+  backend/app/config.py
+  data_collector/schedulers/scheduled_tasks.py

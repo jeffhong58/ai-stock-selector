@@ -1,162 +1,227 @@
+# docker-compose.yml
+# AI Stock Selector - Complete Docker Compose Configuration
 version: '3.8'
 
 services:
-  # PostgreSQL 主資料庫
+  # ===== DATABASE SERVICES =====
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: ai_stock_postgres
     environment:
-      POSTGRES_DB: ai_stock_db
-      POSTGRES_USER: stock_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_password_here}
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-stock_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stock_password}
+      POSTGRES_DB: ${POSTGRES_DB:-ai_stock_db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5432:5432"
     networks:
-      - stock_network
+      - ai_stock_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stock_user} -d ${POSTGRES_DB:-ai_stock_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # InfluxDB 時序資料庫
   influxdb:
-    image: influxdb:2.7
+    image: influxdb:2.7-alpine
     container_name: ai_stock_influxdb
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
-      DOCKER_INFLUXDB_INIT_USERNAME: admin
-      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-your_password_here}
-      DOCKER_INFLUXDB_INIT_ORG: stock_org
-      DOCKER_INFLUXDB_INIT_BUCKET: stock_data
-      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN:-your_token_here}
-    ports:
-      - "8086:8086"
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USER:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-influx_password}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG:-stock_org}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET:-stock_timeseries}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN:-your_influxdb_token}
     volumes:
       - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    ports:
+      - "8086:8086"
     networks:
-      - stock_network
+      - ai_stock_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Redis 快取和任務佇列
   redis:
     image: redis:7-alpine
     container_name: ai_stock_redis
-    ports:
-      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    ports:
+      - "6379:6379"
     networks:
-      - stock_network
+      - ai_stock_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # 後端API服務
+  # ===== BACKEND SERVICES =====
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ai_stock_backend
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://stock_user:${POSTGRES_PASSWORD:-your_password_here}@postgres:5432/ai_stock_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-ai_stock_db}
       REDIS_URL: redis://redis:6379/0
       INFLUXDB_URL: http://influxdb:8086
-      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-your_token_here}
-      INFLUXDB_ORG: stock_org
-      INFLUXDB_BUCKET: stock_data
+    volumes:
+      - ./backend:/app
+      - backend_logs:/app/logs
     ports:
       - "8000:8000"
     depends_on:
-      - postgres
-      - redis
-      - influxdb
-    volumes:
-      - ./backend:/app
-      - ./ml_models:/app/ml_models
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
     networks:
-      - stock_network
+      - ai_stock_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # 資料收集服務
-  data_collector:
-    build:
-      context: ./data_collector
-      dockerfile: Dockerfile
-    container_name: ai_stock_data_collector
-    environment:
-      DATABASE_URL: postgresql://stock_user:${POSTGRES_PASSWORD:-your_password_here}@postgres:5432/ai_stock_db
-      REDIS_URL: redis://redis:6379/0
-      INFLUXDB_URL: http://influxdb:8086
-      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-your_token_here}
-      INFLUXDB_ORG: stock_org
-      INFLUXDB_BUCKET: stock_data
-    depends_on:
-      - postgres
-      - redis
-      - influxdb
-    volumes:
-      - ./data_collector:/app
-    networks:
-      - stock_network
-    restart: unless-stopped
-
-  # Celery Worker 後台任務處理
+  # ===== CELERY SERVICES =====
   celery_worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ai_stock_celery_worker
-    command: celery -A app.main.celery worker --loglevel=info
+    command: celery -A celery_app worker --loglevel=info --concurrency=4 --queues=data_update,calculations,ai_processing,maintenance
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://stock_user:${POSTGRES_PASSWORD:-your_password_here}@postgres:5432/ai_stock_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-ai_stock_db}
       REDIS_URL: redis://redis:6379/0
-      INFLUXDB_URL: http://influxdb:8086
-      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-your_token_here}
-      INFLUXDB_ORG: stock_org
-      INFLUXDB_BUCKET: stock_data
-    depends_on:
-      - postgres
-      - redis
-      - influxdb
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
     volumes:
       - ./backend:/app
-      - ./ml_models:/app/ml_models
+      - ./data_collector:/app/data_collector
+      - celery_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
     networks:
-      - stock_network
+      - ai_stock_network
     restart: unless-stopped
 
-  # Celery Beat 排程器
   celery_beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ai_stock_celery_beat
-    command: celery -A app.main.celery beat --loglevel=info
+    command: celery -A celery_app beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://stock_user:${POSTGRES_PASSWORD:-your_password_here}@postgres:5432/ai_stock_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-ai_stock_db}
       REDIS_URL: redis://redis:6379/0
-    depends_on:
-      - postgres
-      - redis
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
     volumes:
       - ./backend:/app
+      - celery_beat_schedule:/app/schedule
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      celery_worker:
+        condition: service_started
     networks:
-      - stock_network
+      - ai_stock_network
     restart: unless-stopped
 
-  # 前端React應用
+  celery_flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai_stock_celery_flower
+    command: celery -A celery_app flower --port=5555
+    env_file:
+      - .env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery_worker
+    networks:
+      - ai_stock_network
+    restart: unless-stopped
+
+  # ===== FRONTEND SERVICE =====
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: ai_stock_frontend
     ports:
-      - "3000:3000"
-    environment:
-      REACT_APP_API_URL: http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
     networks:
-      - stock_network
+      - ai_stock_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===== DATA COLLECTOR SERVICE =====
+  data_collector:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai_stock_data_collector
+    command: python -m data_collector.schedulers.scheduled_tasks
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-ai_stock_db}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./data_collector:/app/data_collector
+      - ./backend/app:/app/app
+      - data_collector_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ai_stock_network
     restart: unless-stopped
 
-  # Nginx 反向代理
+  # ===== MONITORING SERVICES (Optional) =====
   nginx:
     image: nginx:alpine
     container_name: ai_stock_nginx
@@ -166,18 +231,41 @@ services:
     volumes:
       - ./deployment/nginx.conf:/etc/nginx/nginx.conf
       - ./deployment/ssl:/etc/nginx/ssl
+      - nginx_logs:/var/log/nginx
     depends_on:
-      - backend
       - frontend
+      - backend
     networks:
-      - stock_network
+      - ai_stock_network
     restart: unless-stopped
+    profiles:
+      - production
 
+  # ===== VOLUMES =====
 volumes:
   postgres_data:
+    driver: local
   influxdb_data:
+    driver: local
+  influxdb_config:
+    driver: local
   redis_data:
+    driver: local
+  backend_logs:
+    driver: local
+  celery_logs:
+    driver: local
+  celery_beat_schedule:
+    driver: local
+  data_collector_logs:
+    driver: local
+  nginx_logs:
+    driver: local
 
+# ===== NETWORKS =====
 networks:
-  stock_network:
+  ai_stock_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

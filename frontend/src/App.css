@@ -1,0 +1,77 @@
+/* frontend/src/App.css */
+/* 主要應用程式的樣式設定 */
+
+.App {
+  text-align: center;
+}
+
+.logo {
+  height: 32px;
+  margin: 16px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+}
+
+/* 標題樣式 */
+.page-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 24px;
+  color: #262626;
+}
+
+/* 卡片樣式 */
+.stats-card {
+  text-align: center;
+  padding: 20px;
+}
+
+.stats-card .value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1890ff;
+}
+
+.stats-card .label {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin-top: 8px;
+}
+
+/* 股票清單表格樣式 */
+.stock-table {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 搜尋框樣式 */
+.search-box {
+  margin-bottom: 16px;
+}
+
+/* 載入動畫 */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+/* 錯誤訊息樣式 */
+.error-message {
+  text-align: center;
+  color: #ff4d4f;
+  padding: 40px;
+}
+
+/* 響應式表格 */
+@media (max-width: 768px) {
+  .ant-table {
+    font-size: 12px;
+  }
+  
+  .page-title {
+    font-size: 20px;
+  }
+}

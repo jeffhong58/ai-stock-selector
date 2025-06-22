@@ -1,0 +1,44 @@
+/* frontend/src/index.css */
+/* 基本的網頁樣式設定 */
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f0f2f5;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* 清除預設樣式 */
+* {
+  box-sizing: border-box;
+}
+
+/* 股票上漲顏色 (綠色) */
+.stock-up {
+  color: #52c41a;
+}
+
+/* 股票下跌顏色 (紅色) */
+.stock-down {
+  color: #ff4d4f;
+}
+
+/* 股票持平顏色 (灰色) */
+.stock-flat {
+  color: #8c8c8c;
+}
+
+/* 響應式設計 - 手機版 */
+@media (max-width: 768px) {
+  .ant-layout-sider {
+    width: 100% !important;
+  }
+}
